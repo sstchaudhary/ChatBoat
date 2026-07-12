@@ -24,7 +24,7 @@ GREETING_RESPONSES = {
 }
 
 SYSTEM_PROMPT = PromptTemplate(
-    input_variables=["context", "question"],
+    input_variables=["context", "conversation", "question"],
     template=(
         "You are a helpful document assistant. Answer ONLY using the context provided below.\n"
         "IMPORTANT RULES:\n"
@@ -39,7 +39,7 @@ SYSTEM_PROMPT = PromptTemplate(
         "5. Do NOT summarize or shorten — give the COMPLETE information from the context.\n"
         "6. If the answer is not in the context, say: 'I\\'m sorry, I don\\'t have information about that in the provided documents.'\n"
         "7. Do NOT use outside knowledge — only use what is in the context below.\n\n"
-        "Context:\n{context}\n\nQuestion: {question}\n\nFormatted Answer:"
+        "Context:\n{context}\n\nConversation so far:\n{conversation}\n\nQuestion: {question}\n\nFormatted Answer:"
     ),
 )
 
@@ -61,7 +61,25 @@ def load_vectorstore():
     return Chroma(persist_directory=chroma_dir, embedding_function=embeddings)
 
 
-def ask_stream(question: str):
+def format_conversation(conversation) -> str:
+    if not isinstance(conversation, list):
+        return '(No previous conversation.)'
+
+    entries = []
+    for message in conversation[-10:]:
+        if not isinstance(message, dict):
+            continue
+        role = message.get('role')
+        content = str(message.get('content', '')).strip()
+        if role not in ('user', 'bot') or not content:
+            continue
+        speaker = 'User' if role == 'user' else 'Assistant'
+        entries.append(f'{speaker}: {content[:2000]}')
+
+    return '\n\n'.join(entries) if entries else '(No previous conversation.)'
+
+
+def ask_stream(question: str, conversation=None):
     """
     Generator that yields tokens as the LLM produces them.
     Each yielded item is a dict:
@@ -103,7 +121,11 @@ def ask_stream(question: str):
         yield {'type': 'done', 'sources': [], 'is_greeting': False}
         return
 
-    prompt = SYSTEM_PROMPT.format(context=context, question=question)
+    prompt = SYSTEM_PROMPT.format(
+        context=context,
+        conversation=format_conversation(conversation),
+        question=question,
+    )
     llm_model = os.environ.get('OLLAMA_LLM_MODEL', 'llama3.2')
     llm = OllamaLLM(model=llm_model, temperature=0.2)
 
@@ -116,7 +138,7 @@ def ask_stream(question: str):
     yield {'type': 'done', 'sources': sources, 'is_greeting': False}
 
 
-def ask(question: str) -> dict:
+def ask(question: str, conversation=None) -> dict:
     """
     Answer questions about indexed documents.
     - Detects greetings and responds with a friendly greeting.
@@ -156,7 +178,11 @@ def ask(question: str) -> dict:
             'is_greeting': False,
         }
     
-    prompt = SYSTEM_PROMPT.format(context=context, question=question)
+    prompt = SYSTEM_PROMPT.format(
+        context=context,
+        conversation=format_conversation(conversation),
+        question=question,
+    )
     llm_model = os.environ.get('OLLAMA_LLM_MODEL', 'llama3.2')
     llm = OllamaLLM(model=llm_model, temperature=0.2)
     answer = llm.invoke(prompt)

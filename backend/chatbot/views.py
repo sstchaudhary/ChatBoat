@@ -99,10 +99,11 @@ class DocumentDeleteView(APIView):
 class AskView(APIView):
     def post(self, request):
         question = request.data.get('question', '').strip()
+        conversation = request.data.get('conversation', [])
         if not question:
             return Response({'error': 'question required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            res = ask(question)
+            res = ask(question, conversation)
         except RuntimeError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as exc:
@@ -117,6 +118,7 @@ class AskView(APIView):
 class AskStreamView(APIView):
     def post(self, request):
         question = request.data.get('question', '').strip()
+        conversation = request.data.get('conversation', [])
         if not question:
             return Response({'error': 'question required'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -125,7 +127,7 @@ class AskStreamView(APIView):
             sources = []
             completed = False
             try:
-                for chunk in ask_stream(question):
+                for chunk in ask_stream(question, conversation):
                     if chunk['type'] == 'token':
                         answer_parts.append(chunk['text'])
                         yield f"data: {json.dumps({'type': 'token', 'text': chunk['text']})}\n\n"

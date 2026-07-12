@@ -10,6 +10,7 @@ export const uploadDocument = (file) => {
 
 export const getDocuments = () => API.get('/documents/');
 export const deleteDocument = (id) => API.delete(`/documents/${id}/`);
+export const getHealth = () => API.get('/health/');
 export const askQuestion = (question) => API.post('/ask/', { question });
 export const getChatHistory = () => API.get('/history/');
 export const clearHistory = () => API.delete('/history/');
@@ -17,17 +18,18 @@ export const clearHistory = () => API.delete('/history/');
 /**
  * Stream a response from the chatbot token by token.
  * @param {string} question
+ * @param {{role: string, content: string}[]} conversation - prior chat messages
  * @param {(token: string) => void} onToken  - called for each text chunk
  * @param {(sources: string[]) => void} onDone - called once with final sources list
  * @param {(message: string) => void} onError - called on any error
  */
-export const askStream = async (question, onToken, onDone, onError) => {
+export const askStream = async (question, conversation, onToken, onDone, onError) => {
   let response;
   try {
     response = await fetch('http://localhost:8000/api/ask/stream/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, conversation }),
     });
   } catch (err) {
     onError('Network error: could not reach the server.');
