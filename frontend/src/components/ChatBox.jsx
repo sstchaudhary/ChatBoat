@@ -2,10 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { askStream } from '../api/api';
 import Message from './Message';
 
-export default function ChatBox() {
-  const [messages, setMessages] = useState([
-    { role: 'bot', content: 'Hello! 👋 Upload a document, then ask a question about it.' },
-  ]);
+export default function ChatBox({ messages, setMessages }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
@@ -21,6 +18,10 @@ export default function ChatBox() {
       return;
     }
 
+    const conversation = messages
+      .filter((message) => ['user', 'bot'].includes(message.role) && message.content)
+      .map(({ role, content }) => ({ role, content }));
+
     setMessages((prev) => [...prev, { role: 'user', content: question }]);
     setInput('');
     setLoading(true);
@@ -32,6 +33,7 @@ export default function ChatBox() {
     try {
       await askStream(
         question,
+        conversation,
         // onToken: append each chunk to the last message
         (token) => {
           setStreaming(true);
